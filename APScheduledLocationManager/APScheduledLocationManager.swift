@@ -10,7 +10,7 @@ import Foundation
 import CoreLocation
 
 
-public protocol APScheduledLocationManagerDelegate {
+@objc public protocol APScheduledLocationManagerDelegate {
     
     func scheduledLocationManager(_ manager: APScheduledLocationManager, didFailWithError error: Error)
     func scheduledLocationManager(_ manager: APScheduledLocationManager, didUpdateLocations locations: [CLLocation])
@@ -18,7 +18,7 @@ public protocol APScheduledLocationManagerDelegate {
 }
 
 
-public class APScheduledLocationManager: NSObject, CLLocationManagerDelegate {
+@objc public class APScheduledLocationManager: NSObject, CLLocationManagerDelegate {
     
     private let MaxBGTime: TimeInterval = 170
     private let MinBGTime: TimeInterval = 2
@@ -38,7 +38,7 @@ public class APScheduledLocationManager: NSObject, CLLocationManagerDelegate {
     public private(set) var checkLocationInterval: TimeInterval = 10
     public private(set) var isRunning = false
     
-    public init(delegate: APScheduledLocationManagerDelegate) {
+    @objc public init(delegate: APScheduledLocationManagerDelegate) {
        
         self.delegate = delegate
         
@@ -50,24 +50,23 @@ public class APScheduledLocationManager: NSObject, CLLocationManagerDelegate {
     private func configureLocationManager(){
         
         manager.allowsBackgroundLocationUpdates = true
-        manager.desiredAccuracy = kCLLocationAccuracyBest
-        manager.distanceFilter = kCLDistanceFilterNone
         manager.pausesLocationUpdatesAutomatically = false
         manager.delegate = self
     }
     
-    public func requestAlwaysAuthorization() {
+    @objc public func requestAlwaysAuthorization() {
         
         manager.requestAlwaysAuthorization()
     }
     
-    public func startUpdatingLocation(interval: TimeInterval, acceptableLocationAccuracy: CLLocationAccuracy = 100) {
+    @objc public func startUpdatingLocation(interval: TimeInterval, acceptableLocationAccuracy: CLLocationAccuracy = 100) {
         
         if isRunning {
             
             stopUpdatingLocation()
         }
         
+        checkLocationInterval -= WaitForLocationsTime
         checkLocationInterval = interval > MaxBGTime ? MaxBGTime : interval
         checkLocationInterval = interval < MinBGTime ? MinBGTime : interval
         
@@ -79,7 +78,7 @@ public class APScheduledLocationManager: NSObject, CLLocationManagerDelegate {
         startLocationManager()
     }
     
-    public func stopUpdatingLocation() {
+    @objc public func stopUpdatingLocation() {
         
         isRunning = false
         
@@ -110,6 +109,8 @@ public class APScheduledLocationManager: NSObject, CLLocationManagerDelegate {
     private func startLocationManager() {
         
         isManagerRunning = true
+        manager.desiredAccuracy = kCLLocationAccuracyBest
+        manager.distanceFilter = kCLDistanceFilterNone
         manager.startUpdatingLocation()
     }
     
@@ -117,6 +118,11 @@ public class APScheduledLocationManager: NSObject, CLLocationManagerDelegate {
         
         isManagerRunning = false
         manager.stopUpdatingLocation()
+    }
+    
+    private func pauseLocationManager(){
+        manager.desiredAccuracy = kCLLocationAccuracyThreeKilometers
+        manager.distanceFilter = 99999
     }
     
     @objc func applicationDidEnterBackground() {
@@ -130,20 +136,21 @@ public class APScheduledLocationManager: NSObject, CLLocationManagerDelegate {
         stopBackgroundTask()
     }
     
-    public func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
+    @objc public func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
     
         delegate.scheduledLocationManager(self, didChangeAuthorization: status)
     }
     
-    public func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+    @objc public func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         
         delegate.scheduledLocationManager(self, didFailWithError: error)
     }
     
-    public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        
+    @objc public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+//        print("LOCATIONS ARE: \(locations)")
         guard isManagerRunning else { return }
-        guard locations.count>0 else { return }
+        guard locations.count > 0 else { return }
+        guard manager.desiredAccuracy == kCLLocationAccuracyBest else {return}
         
         lastLocations = locations
         
@@ -168,7 +175,7 @@ public class APScheduledLocationManager: NSObject, CLLocationManagerDelegate {
         }
     }
     
-    func checkLocationTimerEvent() {
+    @objc func checkLocationTimerEvent() {
 
         stopCheckLocationTimer()
         
@@ -193,7 +200,7 @@ public class APScheduledLocationManager: NSObject, CLLocationManagerDelegate {
         }
     }
     
-    func waitTimerEvent() {
+    @objc func waitTimerEvent() {
         
         stopWaitTimer()
         
@@ -201,7 +208,8 @@ public class APScheduledLocationManager: NSObject, CLLocationManagerDelegate {
             
             startBackgroundTask()
             startCheckLocationTimer()
-            stopLocationManager()
+            //stopLocationManager()
+            pauseLocationManager()
             
             delegate.scheduledLocationManager(self, didUpdateLocations: lastLocations)
         }else{
@@ -213,11 +221,11 @@ public class APScheduledLocationManager: NSObject, CLLocationManagerDelegate {
     private func acceptableLocationAccuracyRetrieved() -> Bool {
         
         let location = lastLocations.last!
-        
+//        print("ACCURACY: = \(location.horizontalAccuracy)")
         return location.horizontalAccuracy <= acceptableLocationAccuracy ? true : false
     }
    
-    func stopAndResetBgTaskIfNeeded()  {
+    @objc func stopAndResetBgTaskIfNeeded()  {
         
         if isManagerRunning {
             stopBackgroundTask()
